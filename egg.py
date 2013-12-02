@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 from argparse import ArgumentParser
 from itertools import chain
-from pkg_resources import working_set, Environment, Requirement
+from pkg_resources import (
+    working_set,
+    Environment,
+    Requirement,
+    parse_version,
+)
 
 
 def clean_term(term):
@@ -74,6 +79,29 @@ def matching_dist_req(dist, req):
 
 def normalize_req(req):
     return req.key + ','.join(s[0]+s[1] for s in req.specs)
+
+def spec_satisfies_specs(spec, specs):
+    interval = interval_for_specs(specs)
+
+
+def interval_for_specs(specs):
+    specs = sort_specs_by_version(specs)
+    ceilings = [s for s in specs if '<' in s[0]]
+    floors = [s for s in specs if '<' in s[0]]
+
+    min_ceiling = ceilings[0] if ceilings else ('<', LARGEST)
+    max_floor = floors[-1] if floors else ('>', SMALLEST)
+    return (max_floor, min_ceiling)
+
+def sort_specs_by_version(specs):
+    return sorted(specs, key=spec_version_sort_key)
+
+def spec_version_sort_key(spec):
+    return parse_version(spec[1])
+
+
+SMALLEST = None
+LARGEST = type('LargestType', (), dict(__cmp__=lambda s,o: 1))
 
 
 if __name__ == '__main__':
