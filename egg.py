@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-from zipimport import zipimporter
+from zipimport import zipimporter, ZipImportError
 from itertools import chain
 from operator import attrgetter
 from argparse import ArgumentParser
@@ -43,7 +43,7 @@ def main():
     args = argparser.parse_args()
 
     if args.eggs:
-        distributions = map(egg_dist, args.eggs)
+        distributions = compact(map(egg_dist, args.eggs))
     else:
         distributions = get_env_distributions()
 
@@ -88,7 +88,6 @@ def print_dists_and_reqs(dists_and_reqs):
             print '     ', normalize_req(r)
 
 def dist_status(dist):
-    #import ipdb; ipdb.set_trace()
     if dist_req_is_in_dists(dist, working_set):
         return 'A'
 
@@ -113,13 +112,24 @@ def normalize_req(req):
     return req.key + ','.join(s[0]+s[1] for s in req.specs)
 
 def egg_dist(egg_path):
-    if os.path.isdir(egg_path):
-        metadata = PathMetadata(egg_path, os.path.join(egg_path,'EGG-INFO'))
-    else:
-        metadata = EggMetadata(zipimporter(egg_path))
+    metadata_func = \
+        egg_path_metadata if os.path.isdir(egg_path) else egg_zip_metadata
+    metadata = metadata_func(egg_path)
 
-    return Distribution.from_filename(egg_path, metadata=metadata)
+    if metadata is not None:
+        return Distribution.from_filename(egg_path, metadata=metadata)
 
+def egg_path_metadata(egg_path):
+    return PathMetadata(egg_path, os.path.join(egg_path,'EGG-INFO'))
+
+def egg_zip_metadata(egg_path):
+    try:
+        return EggMetadata(zipimporter(egg_path))
+    except ZipImportError, e:
+        print e.message
+
+def compact(iterable):
+    return (item for item in iterable if item)
 
 #------------------------------------------------------------------------------
 # work in progress below
