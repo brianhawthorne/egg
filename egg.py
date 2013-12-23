@@ -1,11 +1,17 @@
 #!/usr/bin/env python
-from argparse import ArgumentParser
+import os
+from zipimport import zipimporter
 from itertools import chain
+from operator import attrgetter
+from argparse import ArgumentParser
 from pkg_resources import (
     working_set,
+    Distribution,
     Environment,
     Requirement,
     parse_version,
+    PathMetadata,
+    EggMetadata,
 )
 
 
@@ -17,30 +23,40 @@ argparser = ArgumentParser(
 )
 argparser.add_argument('terms', metavar='T', type=clean_term, nargs='*')
 argparser.add_argument(
-    '--list', action='store_true',
+    '-l', '--list', action='store_true',
     help='show distributions matching the given terms (or all if no terms ' \
          'given)'
 )
 argparser.add_argument(
-    '--require', action='store_true',
+    '-r', '--require', action='store_true',
     help='show distributions with requirements matching the given terms (or ' \
          'all if no terms given)'
 )
+argparser.add_argument(
+    '-e', '--eggs', nargs='+',
+    help='include the one or more given egg files or directories in the ' \
+         'distribution pool to be searched'
+)
 
-env = Environment()
-distributions = chain.from_iterable(env[p] for p in sorted(env))
 
 def main():
     args = argparser.parse_args()
 
+    if args.eggs:
+        distributions = map(egg_dist, args.eggs)
+    else:
+        distributions = get_env_distributions()
+
+    distributions = sorted(distributions, key=attrgetter('key'))
+
     if args.list:
-        list_action(args)
+        list_action(args, distributions)
 
     if args.require:
-        require_action(args)
+        require_action(args, distributions)
 
 
-def list_action(args):
+def list_action(args, distributions):
     reqs = [Requirement.parse(t) for t in args.terms]
     def dist_matches(d):
         if not reqs:
@@ -49,7 +65,7 @@ def list_action(args):
     print_dists_and_reqs((d,()) for d in distributions if dist_matches(d))
 
 
-def require_action(args):
+def require_action(args, distributions):
     if not args.terms:
         print_dists_and_reqs((d, d.requires()) for d in distributions)
         return 
@@ -67,10 +83,26 @@ def require_action(args):
 
 def print_dists_and_reqs(dists_and_reqs):
     for d, reqs in dists_and_reqs:
-        status = 'A' if d in working_set else 'i'
-        print '[%s] %s-%s'% (status, d.key, d.version)
+        print '[%s] %s-%s'% (dist_status(d), d.key, d.version)
         for r in reqs:
-            print '     ', r,normalize_req(r)
+            print '     ', normalize_req(r)
+
+def dist_status(dist):
+    #import ipdb; ipdb.set_trace()
+    if dist_req_is_in_dists(dist, working_set):
+        return 'A'
+
+    if dist_req_is_in_dists(dist, get_env_distributions()):
+        return 'i'
+
+    return 'u'
+
+def dist_req_is_in_dists(dist, dists):
+    return dist.as_requirement() in [d.as_requirement() for d in dists]
+
+def get_env_distributions():
+    env = Environment()
+    return list(chain.from_iterable(env[p] for p in sorted(env)))
 
 def matching_dist_req(dist, req):
     for r in dist.requires():
@@ -80,9 +112,19 @@ def matching_dist_req(dist, req):
 def normalize_req(req):
     return req.key + ','.join(s[0]+s[1] for s in req.specs)
 
+def egg_dist(egg_path):
+    if os.path.isdir(egg_path):
+        metadata = PathMetadata(egg_path, os.path.join(egg_path,'EGG-INFO'))
+    else:
+        metadata = EggMetadata(zipimporter(egg_path))
+
+    return Distribution.from_filename(egg_path, metadata=metadata)
+
+
+#------------------------------------------------------------------------------
+# work in progress below
 def spec_satisfies_specs(spec, specs):
     interval = interval_for_specs(specs)
-
 
 def interval_for_specs(specs):
     specs = sort_specs_by_version(specs)
@@ -98,6 +140,7 @@ def sort_specs_by_version(specs):
 
 def spec_version_sort_key(spec):
     return parse_version(spec[1])
+#------------------------------------------------------------------------------
 
 
 SMALLEST = None
