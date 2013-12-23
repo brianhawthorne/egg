@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os
+import os, sys
 from zipimport import zipimporter, ZipImportError
 from itertools import chain
 from operator import attrgetter
@@ -126,7 +126,7 @@ def egg_zip_metadata(egg_path):
     try:
         return EggMetadata(zipimporter(egg_path))
     except ZipImportError, e:
-        print e.message
+        sys.stderr.write(e.message + '\n')
 
 def compact(iterable):
     return (item for item in iterable if item)
