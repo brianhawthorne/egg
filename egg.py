@@ -23,6 +23,10 @@ argparser = ArgumentParser(
 )
 argparser.add_argument('terms', metavar='T', type=clean_term, nargs='*')
 argparser.add_argument(
+    '-v', '--verbose', action='store_true',
+    help='show all requirements of matching distributions'
+)
+argparser.add_argument(
     '-l', '--list', action='store_true',
     help='show distributions matching the given terms (or all if no terms ' \
          'given)'
@@ -58,11 +62,19 @@ def main():
 
 def list_action(args, distributions):
     reqs = [Requirement.parse(t) for t in args.terms]
+
     def dist_matches(d):
         if not reqs:
             return True
         return any(d in r for r in reqs)
-    print_dists_and_reqs((d,()) for d in distributions if dist_matches(d))
+
+    def generate_matching_dists_and_reqs():
+        for d in distributions:
+            if dist_matches(d):
+                reqs = d.requires() if args.verbose else ()
+                yield (d, reqs)
+
+    print_dists_and_reqs(generate_matching_dists_and_reqs())
 
 
 def require_action(args, distributions):
