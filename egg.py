@@ -41,6 +41,11 @@ argparser.add_argument(
     help='include the one or more given egg files or directories in the ' \
          'distribution pool to be searched'
 )
+argparser.add_argument(
+    '-a', '--all', action='store_true',
+    help='include installed but inactive distributions'
+)
+
 
 
 def main():
@@ -74,12 +79,12 @@ def list_action(args, distributions):
                 reqs = d.requires() if args.verbose else ()
                 yield (d, reqs)
 
-    print_dists_and_reqs(generate_matching_dists_and_reqs())
+    print_dists_and_reqs(args, generate_matching_dists_and_reqs())
 
 
 def require_action(args, distributions):
     if not args.terms:
-        print_dists_and_reqs((d, d.requires()) for d in distributions)
+        print_dists_and_reqs(args, [(d, d.requires()) for d in distributions])
         return 
 
     query_req = Requirement.parse(args.terms[0])
@@ -90,23 +95,42 @@ def require_action(args, distributions):
             if r is not None:
                 yield d, (r,)
 
-    print_dists_and_reqs(generate_matching_dists_and_reqs())
+    print_dists_and_reqs(args, generate_matching_dists_and_reqs())
 
 
-def print_dists_and_reqs(dists_and_reqs):
+
+def print_dists_and_reqs(args, dists_and_reqs):
     for d, reqs in dists_and_reqs:
-        print '[%s] %s-%s'% (dist_status(d), d.key, d.version)
+
+        # Skip inactive dists unless --all was given.
+        if not args.all and dist_status(d) != STATUS.ACTIVE:
+            continue
+
+        print '[%s] %s-%s'% (dist_status_label(d), d.key, d.version)
         for r in reqs:
             print '     ', normalize_req(r)
 
+
+def dist_status_label(dist):
+    status = dist_status(dist)
+    if status == STATUS.ACTIVE:
+        return '*'
+    elif status == STATUS.INACTIVE:
+        return ' '
+    else:
+        return '?'
+
 def dist_status(dist):
     if dist_req_is_in_dists(dist, working_set):
-        return 'A'
-
+        return STATUS.ACTIVE
     if dist_req_is_in_dists(dist, get_env_distributions()):
-        return 'i'
+        return STATUS.INACTIVE
+    return STATUS.UNKNOWN
 
-    return 'u'
+class STATUS:
+    ACTIVE = 'active'
+    INACTIVE = 'inactive'
+    UNKNOWN = 'unknown'
 
 def dist_req_is_in_dists(dist, dists):
     return dist.as_requirement() in [d.as_requirement() for d in dists]
