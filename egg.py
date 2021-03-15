@@ -106,9 +106,9 @@ def print_dists_and_reqs(args, dists_and_reqs):
         if not args.all and dist_status(d) != STATUS.ACTIVE:
             continue
 
-        print '[%s] %s-%s'% (dist_status_label(d), d.key, d.version)
+        print('[%s] %s-%s'% (dist_status_label(d), d.key, d.version))
         for r in reqs:
-            print '     ', normalize_req(r)
+            print('     ', normalize_req(r))
 
 
 def dist_status_label(dist):
@@ -161,7 +161,7 @@ def egg_path_metadata(egg_path):
 def egg_zip_metadata(egg_path):
     try:
         return EggMetadata(zipimporter(egg_path))
-    except ZipImportError, e:
+    except ZipImportError as e:
         sys.stderr.write(e.message + '\n')
 
 def compact(iterable):
